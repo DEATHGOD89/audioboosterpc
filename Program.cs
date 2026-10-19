@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using System.IO.Pipes;
 using System.Text;
@@ -8,72 +9,107 @@ namespace AudioCinematicBoost
 {
     static class Program
     {
-        private static Mutex? _appMutex;
         private const string MutexName = "Global\\CinematicAudioBoostApp";
+        private static Mutex? _appMutex;
 
         [STAThread]
         static void Main(string[] args)
         {
-            bool createdNew;
-            _appMutex = new Mutex(true, MutexName, out createdNew);
+            bool hasHandle = false;
 
-            // Handle command line arguments
-            if (args.Length > 0)
+            try
             {
-                string arg = args[0].ToLowerInvariant();
+                try
+                {
+                    _appMutex = new Mutex(true, MutexName, out hasHandle);
+                }
+                catch (AbandonedMutexException)
+                {
+                    // Previous instance crashed or was terminated abnormally
+                    hasHandle = true;
+                }
 
-                if (arg == "/stop")
+                bool autoEnable = true;
+
+                // Handle command line arguments
+                if (args.Length > 0)
                 {
-                    // Try to send stop signal to running tray app
-                    if (!createdNew)
+                    string arg = args[0].ToLowerInvariant();
+
+                    if (arg == "/stop")
                     {
-                        SendStopSignal();
-                    }
-                    return; // Exit immediately
-                }
-                else if (arg == "/start")
-                {
-                    // If already running, just bring it to front (or do nothing)
-                    if (!createdNew)
+                        if (!hasHandle)
+                        {
+                            SendPipeMessage("STOP\n");
+                        }
+                        else
+                        {
+                            // App was not running, but reset audio to flat anyway
+                            AudioProcessor.ApplyFlat();
+                        }
                         return;
-                    // else continue to run the tray
+                    }
+                    else if (arg == "/start")
+                    {
+                        if (!hasHandle)
+                        {
+                            // Already running in background: send START command to activate
+                            SendPipeMessage("START\n");
+                            return;
+                        }
+                        autoEnable = true;
+                    }
+                    else
+                    {
+                        MessageBox.Show(
+                            "Usage:\n  /start  - Enable Cinematic Audio (runs in system tray)\n  /stop   - Disable audio boost and exit",
+                            "Cinematic Audio Booster",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information);
+                        return;
+                    }
                 }
-                else
+
+                // If another instance is already running and no specific command was given
+                if (!hasHandle)
                 {
-                    MessageBox.Show(
-                        "Usage:\n  /start  - Enable Cinematic Audio (runs in tray)\n  /stop   - Disable and exit",
-                        "Cinematic Audio Booster",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information);
                     return;
                 }
+
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                Application.Run(new TrayAppContext(autoEnable));
+
+                GC.KeepAlive(_appMutex);
             }
+            finally
+            {
+                if (hasHandle && _appMutex != null)
+                {
+                    try
+                    {
+                        _appMutex.ReleaseMutex();
+                    }
+                    catch { }
+                }
 
-            // If no args OR "/start", and we are the first instance -> run tray
-            if (!createdNew)
-                return; // Already running, silently exit
-
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new TrayAppContext());
-
-            _appMutex?.ReleaseMutex();
+                _appMutex?.Dispose();
+            }
         }
 
-        private static void SendStopSignal()
+        private static void SendPipeMessage(string message)
         {
             try
             {
-                using (var pipe = new NamedPipeClientStream(".", "CinematicAudioPipe", PipeDirection.Out))
-                {
-                    pipe.Connect(1000);
-                    byte[] msg = Encoding.UTF8.GetBytes("STOP");
-                    pipe.Write(msg, 0, msg.Length);
-                }
+                using var pipe = new NamedPipeClientStream(".", "CinematicAudioPipe", PipeDirection.Out);
+                pipe.Connect(1500);
+                byte[] msg = Encoding.UTF8.GetBytes(message);
+                pipe.Write(msg, 0, msg.Length);
+                pipe.Flush();
             }
             catch
             {
-                // Server not running, ignore
+                // Running instance was not listening or already terminated
             }
         }
     }

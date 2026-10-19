@@ -5,8 +5,19 @@
     <TargetFramework>net9.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <Nullable>enable</Nullable>
-
+    <RootNamespace>AudioCinematicBoost</RootNamespace>
+    <AssemblyName>AudioCinematicBoost</AssemblyName>
   </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="assets\app.ico">
+      <LogicalName>app.ico</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="assets\logo.png">
+      <LogicalName>logo.png</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 
 </Project>

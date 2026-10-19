@@ -3,6 +3,10 @@
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
+*.log
+debug.txt
+crash.log
+*.ini
 
 # Visual Studio / VS Code
 .vscode/

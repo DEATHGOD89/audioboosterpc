@@ -1,48 +1,55 @@
-# 🎧 AudioCinematicBoost v2.0 (Future-Proof & Self-Healing Edition)
+# 🎧 AudioCinematicBoost (Cinema Playback & Volume Boost Edition)
 
-> **Real-Time Dynamic Cinema Audio & Professional Microphone Enhancement Engine for Windows**
+> **Real-Time Dynamic Cinema Bass & Master Volume Booster for Windows**
 
-AudioCinematicBoost is a lightweight Windows System Tray application built in **C# (.NET / WinForms)** that interfaces directly with **EqualizerAPO** to deliver cinema-grade sound and studio-quality microphone voice processing.
+AudioCinematicBoost is a high-performance, lightweight Windows System Tray application built in **C# (.NET / WinForms)** that interfaces directly with **Equalizer APO** to deliver deep sub-bass, crystal-clear dialogue, and supercharged volume boost above 100% for quiet movies, games, and streaming audio.
 
 ---
 
 ## 🌟 Key Features
 
-### 🔊 Speakers & Headphones Audio Enhancement
-* **Sub Bass & Punch Bass**: Deep sub-bass boost (40Hz) and punchy mid-bass (120Hz).
-* **Vocal Protection & Clarity**: High-shelf clarity at 4kHz & vocal warmth at 1.5kHz.
-* **8kHz Sparkle**: High-end sheen for dynamic music, gaming, and movie immersion.
-* **Limiter Headroom**: Built-in limiter to prevent digital clipping & distortion.
-
-### 🎙️ Microphone Voice Processing & Noise Cleanup
-* **Preamp Sensitivity Boost**: +12 dB gain boost so soft speech is captured effortlessly on Discord/Zoom.
-* **Electrical Ground Hum Filter**: High-pass filter at 75Hz to eliminate 50Hz/60Hz mains hum.
-* **Notch Filters**: Notch cuts at 120Hz & 180Hz to eliminate power supply electrical current buzz.
-* **USB Static & Coil Whine Filter**: High-shelf cut at 9000Hz to eliminate electronic current hiss.
-* **Vocal Clarity & Energy**: Boosts core speech frequencies (1.5kHz & 3kHz) so your voice cuts through background noise.
+### 🔊 Speakers & Headphones Audio Enhancement (Stage: Post-Mix)
+* **Sub Bass & Punch Bass**: Deep sub-bass boost (40Hz) and punchy mid-bass (120Hz) calibrated for powerful cinematic rumble without muddiness.
+* **🔊 PC Audio Booster (Above 100%)**: Boosts overall PC volume above Windows 100% (from 100% up to 300% / +20 dB boost) so dialogue and quiet audio in movies, Netflix, YouTube, and games is loud and crystal clear.
+* **Built-in Cinema Clarity & Dialogue Protect**: Maintains reference dialogue clarity (1.5kHz vocal protection, 4kHz high-shelf clarity, and 8kHz high-end sparkle) so speech always cuts through action scenes.
+* **Real-Time Smooth Adjustment**: Debounced sliders for instant volume & bass adjustments without audio stutter or disk locking.
+* **Persistent Settings**: Bass and Volume Boost preferences are automatically saved in `%LOCALAPPDATA%\AudioCinematicBoost\audio_settings.ini` and restored on startup.
 
 ### 🛡️ Windows Update Self-Healing Engine
-* **Post-Windows Update Healing**: Automatically detects when a Windows Update unhooks Equalizer APO from your sound devices.
-* **Device Selector Auto-Launcher**: Includes a **1-Click Repair Audio Engine** feature that launches `DeviceSelector.exe` / `Configurator.exe` with proper environment paths for instant re-hooking.
-* **Safe Real-Time Presets**: Updates `config.txt` dynamically without killing audio services or crashing Spotify.
+* **Post-Windows Update Audit**: Scans 64-bit Windows Audio endpoint registry (`MMDevices\Audio\Render`) to verify Equalizer APO sAPO hook integrity.
+* **1-Click Repair Audio Engine**: Automatically detects Equalizer APO installation path dynamically from the registry and launches `Configurator.exe` / `DeviceSelector.exe` with administrative elevation if Windows Update ever unhooks your audio drivers.
+* **Atomic Safe Writes**: Updates `config.txt` safely with thread-safe file locking and automatic directory creation.
 
 ---
 
 ## 🛠️ Prerequisites
 * **Windows 10 / 11** (64-bit)
-* **Equalizer APO** — [Download Equalizer APO on SourceForge](https://sourceforge.net/projects/equalizerapo/)
+* **Equalizer APO** installed — [Download Equalizer APO on SourceForge](https://sourceforge.net/projects/equalizerapo/)
 
 ---
 
 ## 🚀 Quick Start / Usage
 
-1. Clone or download this repository.
-2. Run `AudioCinematicBoost.exe` as Administrator.
-3. The app will launch in your System Tray (near the Windows clock).
-4. Right-click the tray icon to:
-   * **Toggle Cinematic Audio ON / OFF**
-   * **Adjust EQ Settings...** (Customize Bass, Sound Clarity, and Microphone Gain trackbars)
+### Running the App
+1. Run `AudioCinematicBoost.exe`.
+2. The app will launch into your Windows System Tray (near the taskbar clock).
+3. **Double-click** the tray icon to quickly toggle Cinematic Audio & Volume Boost **ON / OFF**.
+4. **Right-click** the tray icon to:
+   * **Toggle Cinematic Audio (Active / Disabled)**
+   * **Adjust Bass & Volume Boost...** (Customize Sub/Punch Bass and PC Volume Boost sliders)
    * **🔧 Repair Audio Engine (Post-Windows Update)**
+   * **Exit**
+
+### Command-Line Arguments
+* `AudioCinematicBoost.exe /start` — Enables Cinematic Audio & Volume Boost (launches in tray, or activates existing instance)
+* `AudioCinematicBoost.exe /stop` — Disables audio boost (reverts to flat bypass) and exits cleanly
+
+---
+
+## 🔨 Building from Source
+To rebuild `AudioCinematicBoost.exe` at any time:
+* Double-click or run `build.bat` in the terminal.
+* The build script automatically locates the Roslyn C# compiler / Visual Studio Build Tools / MSBuild and compiles an optimized, standalone executable.
 
 ---
 

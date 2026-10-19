@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -18,16 +19,19 @@ namespace AudioCinematicBoost
     public static class AudioEngineHealer
     {
         public const string ApoClsid = "{EC1CC9CE-FAED-4822-828A-82A81A6F018F}";
-        public static readonly string ApoInstallDir = @"C:\Program Files\EqualizerAPO";
-        public static readonly string ConfigPath = @"C:\Program Files\EqualizerAPO\config\config.txt";
-
         private const string MmDevicesBaseKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio";
+
+        public static string ApoInstallDir => AudioProcessor.InstallDirectory;
+        public static string ConfigPath => AudioProcessor.ConfigFile;
 
         public static AudioHealthStatus PerformHealthAudit()
         {
             var status = new AudioHealthStatus();
-            status.EqualizerApoInstalled = Directory.Exists(ApoInstallDir) || File.Exists(Path.Combine(ApoInstallDir, "EqualizerAPO.dll"));
-            status.ConfigFileExists = File.Exists(ConfigPath);
+            string installDir = ApoInstallDir;
+            string configPath = ConfigPath;
+
+            status.EqualizerApoInstalled = Directory.Exists(installDir) || File.Exists(Path.Combine(installDir, "EqualizerAPO.dll"));
+            status.ConfigFileExists = File.Exists(configPath);
 
             if (!status.EqualizerApoInstalled)
             {
@@ -39,8 +43,8 @@ namespace AudioCinematicBoost
             int total = 0;
             int hooked = 0;
 
+            // Audit Playback (Render) endpoints exclusively (Speakers / Headphones)
             CheckDeviceTree("Render", ref total, ref hooked);
-            CheckDeviceTree("Capture", ref total, ref hooked);
 
             status.TotalEndpoints = total;
             status.HookedEndpoints = hooked;
@@ -48,12 +52,12 @@ namespace AudioCinematicBoost
             if (total > 0 && hooked > 0)
             {
                 status.IsFullyHooked = true;
-                status.StatusMessage = $"Audio engine healthy: Equalizer APO attached ({hooked}/{total} devices).";
+                status.StatusMessage = $"Audio engine healthy: Equalizer APO attached ({hooked}/{total} playback devices).";
             }
             else if (total > 0 && hooked == 0)
             {
                 status.IsFullyHooked = false;
-                status.StatusMessage = "Windows Update unhooked Equalizer APO from audio devices.";
+                status.StatusMessage = "Windows Update unhooked Equalizer APO from playback devices.";
             }
             else
             {
@@ -68,7 +72,9 @@ namespace AudioCinematicBoost
         {
             try
             {
-                using RegistryKey? baseKey = Registry.LocalMachine.OpenSubKey($@"{MmDevicesBaseKey}\{direction}");
+                // Explicitly use 64-bit registry view to support both 32-bit and 64-bit runtime execution
+                using RegistryKey baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64)
+                                                       .OpenSubKey($@"{MmDevicesBaseKey}\{direction}");
                 if (baseKey == null) return;
 
                 foreach (string deviceGuid in baseKey.GetSubKeyNames())
@@ -109,25 +115,28 @@ namespace AudioCinematicBoost
 
             try
             {
+                string installDir = ApoInstallDir;
+                string configPath = ConfigPath;
+
                 // 1. Verify directory & config file structure
-                if (!Directory.Exists(ApoInstallDir))
+                if (!Directory.Exists(installDir))
                 {
-                    log.AppendLine($"ERROR: Equalizer APO directory not found at '{ApoInstallDir}'.");
+                    log.AppendLine($"ERROR: Equalizer APO directory not found at '{installDir}'.");
                     logDetails = log.ToString();
                     return false;
                 }
 
-                string configDir = Path.GetDirectoryName(ConfigPath)!;
-                if (!Directory.Exists(configDir))
+                string? configDir = Path.GetDirectoryName(configPath);
+                if (!string.IsNullOrEmpty(configDir) && !Directory.Exists(configDir))
                 {
                     Directory.CreateDirectory(configDir);
                     log.AppendLine($"Created config directory: {configDir}");
                 }
 
-                // Restore config.txt if missing
-                if (!File.Exists(ConfigPath) || new FileInfo(ConfigPath).Length == 0)
+                // Restore config.txt if missing or empty
+                if (!File.Exists(configPath) || new FileInfo(configPath).Length == 0)
                 {
-                    File.WriteAllText(ConfigPath, AudioProcessor.GetCinematicConfig());
+                    File.WriteAllText(configPath, AudioProcessor.GetCinematicConfig());
                     log.AppendLine("Restored config.txt with Cinematic EQ preset.");
                 }
                 else
@@ -135,11 +144,11 @@ namespace AudioCinematicBoost
                     log.AppendLine("config.txt is intact and accessible.");
                 }
 
-                // 2. Launch Configurator.exe or DeviceSelector.exe if endpoints are completely unhooked
-                string configuratorPath = Path.Combine(ApoInstallDir, "Configurator.exe");
+                // 2. Launch Configurator.exe or DeviceSelector.exe if endpoints need re-hooking
+                string configuratorPath = Path.Combine(installDir, "Configurator.exe");
                 if (!File.Exists(configuratorPath))
                 {
-                    configuratorPath = Path.Combine(ApoInstallDir, "DeviceSelector.exe");
+                    configuratorPath = Path.Combine(installDir, "DeviceSelector.exe");
                 }
 
                 if (File.Exists(configuratorPath))
@@ -148,18 +157,18 @@ namespace AudioCinematicBoost
                     var psi = new ProcessStartInfo
                     {
                         FileName = configuratorPath,
-                        WorkingDirectory = ApoInstallDir,
+                        WorkingDirectory = installDir,
                         UseShellExecute = true,
                         Verb = "runas"
                     };
                     Process.Start(psi);
-                    log.AppendLine("Device Selector opened. Please select your audio output/mic and click OK to enable audio enhancement.");
+                    log.AppendLine("Equalizer APO Configurator opened. Please select your playback device and click OK.");
                     logDetails = log.ToString();
                     return true;
                 }
                 else
                 {
-                    log.AppendLine("Configurator/DeviceSelector executable not found.");
+                    log.AppendLine("Configurator/DeviceSelector executable not found in install directory.");
                     logDetails = log.ToString();
                     return false;
                 }

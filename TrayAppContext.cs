@@ -1,107 +1,130 @@
+#nullable enable
 using System;
-using System.Diagnostics;
+using System.Drawing;
 using System.IO.Pipes;
+using System.Text;
 using System.Threading;
 using System.Windows.Forms;
-using System.Drawing;
-using System.Text;
 
 namespace AudioCinematicBoost
 {
     public class TrayAppContext : ApplicationContext
     {
-        private NotifyIcon _trayIcon;
-        private ToolStripMenuItem _toggleMenuItem;
+        private readonly NotifyIcon _trayIcon;
+        private readonly ToolStripMenuItem _toggleMenuItem;
         private bool _isActive;
+        private readonly Control _invoker;
+        private readonly CancellationTokenSource _cts = new CancellationTokenSource();
         private Thread? _pipeThread;
-        private Form _hiddenForm;
 
-        public TrayAppContext()
+        public TrayAppContext(bool autoEnable = true)
         {
-            _hiddenForm = new Form();
-            var _ = _hiddenForm.Handle; // Force handle creation for Invoke
+            _invoker = new Control();
+            _ = _invoker.Handle; // Ensure native window handle is created for BeginInvoke
 
             // Build the tray icon
             _trayIcon = new NotifyIcon
             {
                 Visible = true,
-                Text = "Cinematic Audio Booster"
+                Text = "Cinematic Audio Booster",
+                Icon = AppResources.AppIcon
             };
 
-            // Use default icon if you don't have custom ones
-            _trayIcon.Icon = SystemIcons.Application;
+            // Double click tray icon toggles audio
+            _trayIcon.DoubleClick += (s, e) => ToggleAudio();
 
             // Context Menu
             var menu = new ContextMenuStrip();
+
+            var brandHeaderItem = new ToolStripMenuItem("Audio Cinematic Boost")
+            {
+                Image = AppResources.LogoImage,
+                Font = new Font(menu.Font.FontFamily, 9f, FontStyle.Bold)
+            };
+            brandHeaderItem.Click += (s, e) => ShowSettings();
+
             _toggleMenuItem = new ToolStripMenuItem("Enable Cinematic Audio");
+            _toggleMenuItem.Font = new Font(menu.Font, FontStyle.Bold);
             _toggleMenuItem.Click += (s, e) => ToggleAudio();
 
-            var settingsMenuItem = new ToolStripMenuItem("Adjust EQ Settings...");
+            var settingsMenuItem = new ToolStripMenuItem("Adjust Bass & Volume Boost...");
             settingsMenuItem.Click += (s, e) => ShowSettings();
 
             var repairMenuItem = new ToolStripMenuItem("🔧 Repair Audio Engine (Post-Windows Update)");
             repairMenuItem.Click += (s, e) => PerformRepair();
 
+            var exitMenuItem = new ToolStripMenuItem("Exit", null, (s, e) => Exit());
+
+            menu.Items.Add(brandHeaderItem);
+            menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(_toggleMenuItem);
+            menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(settingsMenuItem);
             menu.Items.Add(repairMenuItem);
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("Exit", null, (s, e) => Exit());
+            menu.Items.Add(exitMenuItem);
 
             _trayIcon.ContextMenuStrip = menu;
 
-            // Check initial state
+            // Check initial state from Equalizer APO config
             _isActive = AudioProcessor.IsCinematicActive();
+
+            // Auto-enable if requested and not yet active
+            if (autoEnable && !_isActive)
+            {
+                if (AudioProcessor.ApplyCinematic())
+                {
+                    _isActive = true;
+                }
+            }
+
             UpdateUi();
 
-            // Start background pipe listener for "/stop" command
-            _pipeThread = new Thread(StartPipeServer);
-            _pipeThread.IsBackground = true;
+            // Start background pipe listener for "/start" and "/stop" IPC commands
+            _pipeThread = new Thread(StartPipeServer)
+            {
+                IsBackground = true,
+                Name = "CinematicPipeServer"
+            };
             _pipeThread.Start();
         }
 
         private void ShowSettings()
         {
-            using (var settingsForm = new SettingsForm(() => 
+            using var settingsForm = new SettingsForm(() =>
             {
-                // Action to run when settings change
                 if (_isActive)
                 {
-                    // Re-apply immediately if currently active
                     AudioProcessor.ApplyCinematic();
                 }
-            }))
-            {
-                settingsForm.ShowDialog();
-            }
+            });
+            settingsForm.ShowDialog();
         }
 
         private void ToggleAudio()
         {
             if (_isActive)
             {
-                // Disable: go flat
                 if (AudioProcessor.ApplyFlat())
                 {
                     _isActive = false;
-                    ShowBalloon("Cinematic Audio", "Disabled. Audio is now flat.");
+                    ShowBalloon("Cinematic Audio", "Disabled. Audio is now flat bypass.");
                 }
                 else
                 {
-                    ShowBalloon("Error", "Failed to disable. Run as Administrator.");
+                    ShowBalloon("Error", "Failed to write config. Please check Equalizer APO permissions.");
                 }
             }
             else
             {
-                // Enable: apply cinematic
                 if (AudioProcessor.ApplyCinematic())
                 {
                     _isActive = true;
-                    ShowBalloon("Cinematic Audio", "Enabled! Your perfect SPOTY settings are active.");
+                    ShowBalloon("Cinematic Audio", "Enabled! Cinema-grade audio profile is active.");
                 }
                 else
                 {
-                    ShowBalloon("Error", "Failed to enable. Is EqualizerAPO installed?");
+                    ShowBalloon("Error", "Failed to apply preset. Verify Equalizer APO is installed.");
                 }
             }
             UpdateUi();
@@ -111,12 +134,12 @@ namespace AudioCinematicBoost
         {
             if (_isActive)
             {
-                _toggleMenuItem.Text = "✔ Cinematic Audio (ON)";
-                _trayIcon.Text = "Cinematic Audio: ENABLED";
+                _toggleMenuItem.Text = "✔ Cinematic Audio (ACTIVE)";
+                _trayIcon.Text = "Cinematic Audio: ACTIVE";
             }
             else
             {
-                _toggleMenuItem.Text = " Cinematic Audio (OFF)";
+                _toggleMenuItem.Text = "○ Enable Cinematic Audio";
                 _trayIcon.Text = "Cinematic Audio: DISABLED";
             }
         }
@@ -129,13 +152,13 @@ namespace AudioCinematicBoost
             {
                 _isActive = AudioProcessor.ApplyCinematic();
                 UpdateUi();
-                ShowBalloon("Audio Engine Status", "Configurator opened. Select your audio device if required.");
+                ShowBalloon("Audio Engine Status", "Equalizer APO Configurator opened. Check your playback devices.");
             }
             else
             {
                 MessageBox.Show(
                     $"Repair Diagnostic Output:\n\n{logDetails}",
-                    "Repair Info",
+                    "Audio Engine Diagnostics",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
             }
@@ -143,50 +166,98 @@ namespace AudioCinematicBoost
 
         private void ShowBalloon(string title, string text)
         {
-            _trayIcon.ShowBalloonTip(1500, title, text, ToolTipIcon.Info);
+            try
+            {
+                _trayIcon.ShowBalloonTip(1500, title, text, ToolTipIcon.Info);
+            }
+            catch { }
         }
 
-        // 🛑 Listens for "/stop" command from a second instance
+        // Listens for IPC commands from secondary CLI instances
         private void StartPipeServer()
         {
-            while (true)
+            while (!_cts.IsCancellationRequested)
             {
                 try
                 {
                     using var server = new NamedPipeServerStream("CinematicAudioPipe", PipeDirection.In);
                     server.WaitForConnection();
-                    byte[] buffer = new byte[256];
+
+                    byte[] buffer = new byte[64];
                     int bytesRead = server.Read(buffer, 0, buffer.Length);
-                    string msg = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                    string msg = Encoding.UTF8.GetString(buffer, 0, bytesRead).Trim();
+
+                    try { server.Disconnect(); } catch { }
+
                     if (msg == "STOP")
                     {
-                        // Gracefully disable and exit on UI thread
-                        if (_hiddenForm.IsHandleCreated && !_hiddenForm.IsDisposed)
+                        if (_invoker.IsHandleCreated && !_invoker.IsDisposed)
                         {
-                            _hiddenForm.Invoke(new Action(() =>
-                            {
-                                if (_isActive)
-                                {
-                                    AudioProcessor.ApplyFlat();
-                                    _isActive = false;
-                                    UpdateUi();
-                                }
-                                Exit();
-                            }));
+                            _invoker.BeginInvoke(new Action(() => Exit()));
                         }
                         break;
                     }
+                    else if (msg == "START")
+                    {
+                        if (_invoker.IsHandleCreated && !_invoker.IsDisposed)
+                        {
+                            _invoker.BeginInvoke(new Action(() =>
+                            {
+                                if (!_isActive)
+                                {
+                                    if (AudioProcessor.ApplyCinematic())
+                                    {
+                                        _isActive = true;
+                                        ShowBalloon("Cinematic Audio", "Enabled! Cinema-grade audio profile is active.");
+                                        UpdateUi();
+                                    }
+                                }
+                            }));
+                        }
+                    }
                 }
-                catch { break; }
+                catch
+                {
+                    if (_cts.IsCancellationRequested) break;
+                    Thread.Sleep(200);
+                }
             }
         }
 
         private void Exit()
         {
+            try
+            {
+                if (_isActive)
+                {
+                    AudioProcessor.ApplyFlat();
+                    _isActive = false;
+                }
+            }
+            catch { }
+
+            try
+            {
+                _cts.Cancel();
+            }
+            catch { }
+
             _trayIcon.Visible = false;
             _trayIcon.Dispose();
-            _hiddenForm?.Dispose();
+            _invoker.Dispose();
             Application.Exit();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                try { _cts.Cancel(); } catch { }
+                _trayIcon?.Dispose();
+                _invoker?.Dispose();
+                _cts?.Dispose();
+            }
+            base.Dispose(disposing);
         }
     }
 }
